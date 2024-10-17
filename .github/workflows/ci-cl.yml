@@ -3,10 +3,13 @@ name: CI/CD Pipeline
 on:
   push:
     branches:
-      - main  # Change to your default branch if different
+      - main  # Change this to your default branch
+  pull_request:
+    branches:
+      - main  # Change this to your default branch
 
 jobs:
-  build:
+  build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
@@ -16,40 +19,58 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v2
         with:
-          node-version: '14'  # Specify your Node.js version
+          node-version: '16'  # Specify your Node.js version
 
-      - name: Build backend Docker image
+      - name: Install dependencies for frontend
         run: |
-          cd backend  # Change to your backend directory
-          docker build -t capstone_proj_backend .
+          cd frontend
+          npm install
 
-      - name: Build frontend Docker image
+      - name: Install dependencies for backend
         run: |
-          cd frontend  # Change to your frontend directory
-          docker build -t capstone_proj_frontend .
+          cd backend
+          npm install
+
+      - name: Build frontend
+        run: |
+          cd frontend
+          npm run build
 
       - name: Log in to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v1
+        with:
+          registry-type: private
+          mask-password: true  # Mask the password in logs
 
-      - name: Tag and push backend Docker image to ECR
+      - name: Build Docker images
         run: |
-          docker tag capstone_proj_backend:latest 975050161532.dkr.ecr.us-east-1.amazonaws.com/capstone_proj_backend:latest
-          docker push 975050161532.dkr.ecr.us-east-1.amazonaws.com/capstone_proj_backend:latest
+          # Build frontend image
+          cd frontend
+          docker build -t capstone_proj_frontend .
 
-      - name: Tag and push frontend Docker image to ECR
+          # Build backend image
+          cd ../backend
+          docker build -t capstone_proj_backend .
+
+      - name: Tag and push frontend image
         run: |
           docker tag capstone_proj_frontend:latest 975050161532.dkr.ecr.us-east-1.amazonaws.com/capstone_proj_frontend:latest
           docker push 975050161532.dkr.ecr.us-east-1.amazonaws.com/capstone_proj_frontend:latest
 
+      - name: Tag and push backend image
+        run: |
+          docker tag capstone_proj_backend:latest 975050161532.dkr.ecr.us-east-1.amazonaws.com/capstone_proj_backend:latest
+          docker push 975050161532.dkr.ecr.us-east-1.amazonaws.com/capstone_proj_backend:latest
+
       - name: Deploy to ECS
         run: |
-          # Update your backend service
-          aws ecs update-service --cluster your-cluster-name --service your-backend-service-name --force-new-deployment --desired-count 1
-          
-          # Update your frontend service
-          aws ecs update-service --cluster your-cluster-name --service your-frontend-service-name --force-new-deployment --desired-count 1
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_REGION: us-east-1 # Adjust to your region
+          # Define your ECS cluster name and service name
+          ECS_CLUSTER_NAME="capstone-cluster"
+          FRONTEND_SERVICE_NAME="capstone_proj_frontend"
+          BACKEND_SERVICE_NAME="capstone-backend-service"
 
+          # Update frontend service
+          aws ecs update-service --cluster $ECS_CLUSTER_NAME --service $FRONTEND_SERVICE_NAME --force-new-deployment
+
+          # Update backend service
+          aws ecs update-service --cluster $ECS_CLUSTER_NAME --service $BACKEND_SERVICE_NAME --force-new-deployment
