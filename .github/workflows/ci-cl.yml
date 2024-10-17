@@ -1,46 +1,29 @@
-name: CI/CD Pipeline
-
+name: CI/CD Pipelinee
 on:
   push:
     branches:
-      - main  # Change this to your default branch
-  pull_request:
-    branches:
-      - main  # Change this to your default branch
-
+      - main
 jobs:
-  build-and-deploy:
-    runs-on: ubuntu-latest
-
+  build:
+    runs-on: self-hosted  # Use self-hosted runner
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v2
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
         with:
-          node-version: '16'  # Specify your Node.js version
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
 
-      - name: Install dependencies for frontend
+      - name: Login to Amazon ECR
         run: |
-          cd frontend
-          npm install
+          aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 975050161532.dkr.ecr.us-east-1.amazonaws.com
 
-      - name: Install dependencies for backend
-        run: |
-          cd backend
-          npm install
-
-      - name: Build frontend
-        run: |
-          cd frontend
-          npm run build
-
-      - name: Log in to Amazon ECR
-        uses: aws-actions/amazon-ecr-login@v1
-        with:
-          registry-type: private
-          mask-password: true  # Mask the password in logs
 
       - name: Build Docker images
         run: |
