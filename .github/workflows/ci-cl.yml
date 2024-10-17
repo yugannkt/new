@@ -1,0 +1,55 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main  # Change to your default branch if different
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: '14'  # Specify your Node.js version
+
+      - name: Build backend Docker image
+        run: |
+          cd backend  # Change to your backend directory
+          docker build -t capstone_proj_backend .
+
+      - name: Build frontend Docker image
+        run: |
+          cd frontend  # Change to your frontend directory
+          docker build -t capstone_proj_frontend .
+
+      - name: Log in to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Tag and push backend Docker image to ECR
+        run: |
+          docker tag capstone_proj_backend:latest 975050161532.dkr.ecr.us-east-1.amazonaws.com/capstone_proj_backend:latest
+          docker push 975050161532.dkr.ecr.us-east-1.amazonaws.com/capstone_proj_backend:latest
+
+      - name: Tag and push frontend Docker image to ECR
+        run: |
+          docker tag capstone_proj_frontend:latest 975050161532.dkr.ecr.us-east-1.amazonaws.com/capstone_proj_frontend:latest
+          docker push 975050161532.dkr.ecr.us-east-1.amazonaws.com/capstone_proj_frontend:latest
+
+      - name: Deploy to ECS
+        run: |
+          # Update your backend service
+          aws ecs update-service --cluster your-cluster-name --service your-backend-service-name --force-new-deployment --desired-count 1
+          
+          # Update your frontend service
+          aws ecs update-service --cluster your-cluster-name --service your-frontend-service-name --force-new-deployment --desired-count 1
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: us-east-1 # Adjust to your region
+
